@@ -1,13 +1,26 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:hive_ce/hive_ce.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/reaction_result.dart';
 
 class ReactionHistoryProvider extends ChangeNotifier {
   late Box<ReactionResult> _box;
+  bool _showTimer = false;
 
-  void init(Box<ReactionResult> box) {
+  bool get showTimer => _showTimer;
+
+  Future<void> init(Box<ReactionResult> box) async {
     _box = box;
+    final prefs = await SharedPreferences.getInstance();
+    _showTimer = prefs.getBool('show_timer') ?? false;
+  }
+
+  Future<void> toggleShowTimer() async {
+    _showTimer = !_showTimer;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('show_timer', _showTimer);
+    notifyListeners();
   }
 
   List<ReactionResult> get results {

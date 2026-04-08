@@ -7,11 +7,15 @@ import 'analytics_screen.dart';
 class ResultScreen extends StatefulWidget {
   final ReactionResult result;
   final bool isNewPersonalBest;
+  final int totalTests;
+  final double averageMs;
 
   const ResultScreen({
     super.key,
     required this.result,
     required this.isNewPersonalBest,
+    required this.totalTests,
+    required this.averageMs,
   });
 
   @override
@@ -22,10 +26,40 @@ class _ResultScreenState extends State<ResultScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await ReviewService.recordTest();
-      await ReviewService.maybeRequestReview();
-    });
+    _handleReviewLogic();
+  }
+
+  Future<void> _handleReviewLogic() async {
+    // Snapshot the baseline average at 5 tests.
+    await ReviewService.recordBaselineIfNeeded(
+      widget.averageMs,
+      widget.totalTests,
+    );
+
+    // Determine if we should show the pre-ask dialog.
+    bool shouldPrompt = false;
+
+    if (widget.isNewPersonalBest) {
+      shouldPrompt = await ReviewService.shouldPromptOnPersonalBest(
+        totalTests: widget.totalTests,
+        reactionTimeMs: widget.result.reactionTimeMs,
+        averageMs: widget.averageMs,
+      );
+    }
+
+    if (!shouldPrompt) {
+      shouldPrompt = await ReviewService.shouldPromptOnMilestone(
+        totalTests: widget.totalTests,
+      );
+    }
+
+    if (!shouldPrompt) return;
+
+    // Wait 1.5 seconds so the user absorbs their score first.
+    await Future.delayed(const Duration(milliseconds: 1500));
+    if (!mounted) return;
+
+    await ReviewService.showPreAskDialog(context);
   }
 
   @override

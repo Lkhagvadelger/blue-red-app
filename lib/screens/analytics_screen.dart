@@ -1,13 +1,63 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/reaction_history_provider.dart';
+import '../services/review_service.dart';
 import '../utils/constants.dart';
 import '../widgets/stats_card.dart';
 import '../widgets/reaction_history_chart.dart';
 import '../widgets/reaction_history_list.dart';
 
-class AnalyticsScreen extends StatelessWidget {
+int? _goalMsFromPref(String? goal) {
+  switch (goal) {
+    case 'under_200':
+      return 200;
+    case 'under_250':
+      return 250;
+    default:
+      return null;
+  }
+}
+
+class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
+
+  @override
+  State<AnalyticsScreen> createState() => _AnalyticsScreenState();
+}
+
+class _AnalyticsScreenState extends State<AnalyticsScreen> {
+  int? _goalMs;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGoalAndCheckReview();
+  }
+
+  Future<void> _loadGoalAndCheckReview() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _goalMs = _goalMsFromPref(prefs.getString('user_goal'));
+    });
+
+    // Analytics-improvement review trigger.
+    final provider = Provider.of<ReactionHistoryProvider>(context, listen: false);
+    if (provider.totalTests < 10) return;
+
+    final shouldPrompt = await ReviewService.shouldPromptOnAnalyticsImprovement(
+      currentAverage: provider.averageReactionTime,
+      totalTests: provider.totalTests,
+    );
+    if (shouldPrompt && mounted) {
+      // Small delay so the screen is fully rendered first.
+      await Future.delayed(const Duration(milliseconds: 800));
+      if (mounted) {
+        await ReviewService.showPreAskDialog(context);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +131,7 @@ class AnalyticsScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                ReactionHistoryChart(results: chronological),
+                ReactionHistoryChart(results: chronological, goalMs: _goalMs),
                 const SizedBox(height: 24),
                 Text(
                   'History (${reverseChronological.length})',

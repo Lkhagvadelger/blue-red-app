@@ -5,8 +5,9 @@ import '../utils/constants.dart';
 
 class ReactionHistoryChart extends StatelessWidget {
   final List<ReactionResult> results;
+  final int? goalMs;
 
-  const ReactionHistoryChart({super.key, required this.results});
+  const ReactionHistoryChart({super.key, required this.results, this.goalMs});
 
   @override
   Widget build(BuildContext context) {
@@ -35,17 +36,25 @@ class ReactionHistoryChart extends StatelessWidget {
       return FlSpot(e.key.toDouble(), e.value.reactionTimeMs.toDouble());
     }).toList();
 
-    final maxY = displayResults
-            .map((r) => r.reactionTimeMs)
-            .reduce((a, b) => a > b ? a : b)
-            .toDouble() +
-        50;
-    final minY = (displayResults
-                .map((r) => r.reactionTimeMs)
-                .reduce((a, b) => a < b ? a : b)
-                .toDouble() -
-            50)
-        .clamp(0.0, double.infinity);
+    final dataMax = displayResults
+        .map((r) => r.reactionTimeMs)
+        .reduce((a, b) => a > b ? a : b)
+        .toDouble();
+    final dataMin = displayResults
+        .map((r) => r.reactionTimeMs)
+        .reduce((a, b) => a < b ? a : b)
+        .toDouble();
+
+    // Ensure the goal line and human avg line are within the visible range
+    final referenceLines = [
+      AppConstants.humanAverageMs.toDouble(),
+      if (goalMs != null) goalMs!.toDouble(),
+    ];
+    final effectiveMax = ([dataMax, ...referenceLines].reduce((a, b) => a > b ? a : b));
+    final effectiveMin = ([dataMin, ...referenceLines].reduce((a, b) => a < b ? a : b));
+
+    final maxY = effectiveMax + 50;
+    final minY = (effectiveMin - 50).clamp(0.0, double.infinity);
 
     return Container(
       height: 220,
@@ -105,6 +114,22 @@ class ReactionHistoryChart extends StatelessWidget {
                   labelResolver: (_) => 'Human Avg',
                 ),
               ),
+              if (goalMs != null)
+                HorizontalLine(
+                  y: goalMs!.toDouble(),
+                  color: Colors.greenAccent.withValues(alpha: 0.6),
+                  strokeWidth: 1.5,
+                  dashArray: [6, 4],
+                  label: HorizontalLineLabel(
+                    show: true,
+                    alignment: Alignment.topLeft,
+                    style: TextStyle(
+                      color: Colors.greenAccent.withValues(alpha: 0.8),
+                      fontSize: 10,
+                    ),
+                    labelResolver: (_) => 'Your Goal',
+                  ),
+                ),
             ],
           ),
           lineBarsData: [

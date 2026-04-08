@@ -8,6 +8,7 @@ import '../models/reaction_result.dart';
 import '../providers/reaction_history_provider.dart';
 import '../screens/result_screen.dart';
 import '../screens/analytics_screen.dart';
+import '../screens/settings_screen.dart';
 import '../utils/constants.dart';
 
 enum TestState { waiting, ready, tooEarly }
@@ -22,7 +23,9 @@ class ReactionTestScreen extends StatefulWidget {
 class _ReactionTestScreenState extends State<ReactionTestScreen> {
   TestState _state = TestState.waiting;
   Timer? _timer;
+  Timer? _elapsedTimer;
   DateTime? _colorChangeTime;
+  int _elapsedMs = 0;
   final _random = Random();
   final _uuid = const Uuid();
 
@@ -36,15 +39,18 @@ class _ReactionTestScreenState extends State<ReactionTestScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _elapsedTimer?.cancel();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
   void _startWaiting() {
     _timer?.cancel();
+    _elapsedTimer?.cancel();
     setState(() {
       _state = TestState.waiting;
       _colorChangeTime = null;
+      _elapsedMs = 0;
     });
 
     final delayMs = AppConstants.minDelayMs +
@@ -55,6 +61,19 @@ class _ReactionTestScreenState extends State<ReactionTestScreen> {
         setState(() {
           _state = TestState.ready;
           _colorChangeTime = DateTime.now();
+        });
+        _startElapsedTimer();
+      }
+    });
+  }
+
+  void _startElapsedTimer() {
+    final showTimer = Provider.of<ReactionHistoryProvider>(context, listen: false).showTimer;
+    if (!showTimer) return;
+    _elapsedTimer = Timer.periodic(const Duration(milliseconds: 16), (_) {
+      if (mounted && _colorChangeTime != null) {
+        setState(() {
+          _elapsedMs = DateTime.now().difference(_colorChangeTime!).inMilliseconds;
         });
       }
     });
@@ -71,6 +90,7 @@ class _ReactionTestScreenState extends State<ReactionTestScreen> {
         break;
 
       case TestState.ready:
+        _elapsedTimer?.cancel();
         final tapTime = DateTime.now();
         HapticFeedback.mediumImpact();
         final reactionTimeMs =
@@ -94,6 +114,8 @@ class _ReactionTestScreenState extends State<ReactionTestScreen> {
             builder: (_) => ResultScreen(
               result: result,
               isNewPersonalBest: isNewBest,
+              totalTests: provider.totalTests,
+              averageMs: provider.averageReactionTime,
             ),
           ),
         ).then((_) {
@@ -131,7 +153,7 @@ class _ReactionTestScreenState extends State<ReactionTestScreen> {
 
     return Scaffold(
       body: GestureDetector(
-        onTap: _onTap,
+        onTapDown: (_) => _onTap(),
         child: Container(
           color: bgColor,
           width: double.infinity,
@@ -173,6 +195,7 @@ class _ReactionTestScreenState extends State<ReactionTestScreen> {
                       color: Colors.white70, size: 28),
                   onPressed: () {
                     _timer?.cancel();
+                    _elapsedTimer?.cancel();
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -184,6 +207,43 @@ class _ReactionTestScreenState extends State<ReactionTestScreen> {
                   },
                 ),
               ),
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 8,
+                left: 16,
+                child: IconButton(
+                  icon: const Icon(Icons.settings,
+                      color: Colors.white70, size: 28),
+                  onPressed: () {
+                    _timer?.cancel();
+                    _elapsedTimer?.cancel();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SettingsScreen(),
+                      ),
+                    ).then((_) {
+                      if (mounted) _startWaiting();
+                    });
+                  },
+                ),
+              ),
+              if (_state == TestState.ready &&
+                  context.watch<ReactionHistoryProvider>().showTimer)
+                Positioned(
+                  bottom: MediaQuery.of(context).padding.bottom + 48,
+                  left: 0,
+                  right: 0,
+                  child: Text(
+                    '${_elapsedMs}ms',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 48,
+                      fontWeight: FontWeight.w300,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
             ],
           ),
         ),
