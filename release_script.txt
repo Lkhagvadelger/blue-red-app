@@ -1,0 +1,8 @@
+Change release number every time release new version
+pubspec.yaml
+    version: 1.0.1+4
+
+for iOS -- Path is for Marka's Macbook M2 Air 13.8 inch
+flutter build ipa --no-tree-shake-icons && open build/ios/ipa
+for Android
+flutter build appbundle --release && open build/app/outputs/bundle/release/
